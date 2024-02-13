@@ -127,48 +127,33 @@ impl KZGSettings {
         }
     }
 
-    /// Loads the trusted setup parameters from a file. The file format is as follows:
-    ///
-    /// FIELD_ELEMENTS_PER_BLOB
-    /// 65 # This is fixed and is used for providing multiproofs up to 64 field elements.
-    /// FIELD_ELEMENT_PER_BLOB g1 byte values
-    /// 65 g2 byte values
-    #[cfg(feature = "std")]
-    pub fn load_trusted_setup_file(file_path: &Path) -> Result<Self, Error> {
-        #[cfg(unix)]
-        let file_path_bytes = {
-            use std::os::unix::prelude::OsStrExt;
-            file_path.as_os_str().as_bytes()
-        };
+    //#[cfg(feature = "std")]
+    //pub fn load_trusted_setup_file(file_path: &Path) -> Result<Self, Error> {
+    //    #[cfg(unix)]
+    //    let file_path_bytes = {
+    //        use std::os::unix::prelude::OsStrExt;
+    //        file_path.as_os_str().as_bytes()
+    //    };
 
-        #[cfg(windows)]
-        let file_path_bytes = file_path
-            .as_os_str()
-            .to_str()
-            .ok_or_else(|| Error::InvalidTrustedSetup("Unsupported non unicode file path".into()))?
-            .as_bytes();
+    //    #[cfg(windows)]
+    //    let file_path_bytes = file_path
+    //        .as_os_str()
+    //        .to_str()
+    //        .ok_or_else(|| Error::InvalidTrustedSetup("Unsupported non unicode file path".into()))?
+    //        .as_bytes();
 
-        let file_path = CString::new(file_path_bytes)
-            .map_err(|e| Error::InvalidTrustedSetup(format!("Invalid trusted setup file: {e}")))?;
+    //    let file_path = CString::new(file_path_bytes)
+    //        .map_err(|e| Error::InvalidTrustedSetup(format!("Invalid trusted setup file: {e}")))?;
 
-        Self::load_trusted_setup_file_inner(&file_path)
-    }
+    //    Self::load_trusted_setup_file_inner(&file_path)
+    //}
 
-    /// Loads the trusted setup parameters from a file. The file format is as follows:
-    ///
-    /// FIELD_ELEMENTS_PER_BLOB
-    /// 65 # This is fixed and is used for providing multiproofs up to 64 field elements.
-    /// FIELD_ELEMENT_PER_BLOB g1 byte values
-    /// 65 g2 byte values
-    #[cfg(not(feature = "std"))]
-    pub fn load_trusted_setup_file(file_path: &CStr) -> Result<Self, Error> {
-        Self::load_trusted_setup_file_inner(file_path)
-    }
+    //#[cfg(not(feature = "std"))]
+    //pub fn load_trusted_setup_file(file_path: &CStr) -> Result<Self, Error> {
+    //    Self::load_trusted_setup_file_inner(file_path)
+    //}
 
-    /// Loads the trusted setup parameters from a file.
-    ///
-    /// Same as [`load_trusted_setup_file`](Self::load_trusted_setup_file)
-    #[cfg_attr(not(feature = "std"), doc = ", but takes a `CStr` instead of a `Path`")]
+    /*#[cfg_attr(not(feature = "std"), doc = ", but takes a `CStr` instead of a `Path`")]
     /// .
     pub fn load_trusted_setup_file_inner(file_path: &CStr) -> Result<Self, Error> {
         // SAFETY: `b"r\0"` is a valid null-terminated string.
@@ -206,7 +191,7 @@ impl KZGSettings {
         let _unchecked_close_result = unsafe { libc::fclose(file_ptr) };
 
         result
-    }
+    }*/
 }
 
 impl Drop for KZGSettings {

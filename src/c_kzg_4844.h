@@ -131,7 +131,8 @@ C_KZG_RET load_trusted_setup(
     size_t n2
 );
 
-C_KZG_RET load_trusted_setup_file(KZGSettings *out, FILE *in);
+// ain't no file system where we're going
+//C_KZG_RET load_trusted_setup_file(KZGSettings *out, FILE *in);
 
 void free_trusted_setup(KZGSettings *s);
 

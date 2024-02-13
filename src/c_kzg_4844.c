@@ -1769,39 +1769,39 @@ out_success:
  * @param[out] out Pointer to the loaded trusted setup data
  * @param[in]  in  File handle for input
  */
-C_KZG_RET load_trusted_setup_file(KZGSettings *out, FILE *in) {
-    int num_matches;
-    uint64_t i;
-    uint8_t g1_bytes[TRUSTED_SETUP_NUM_G1_POINTS * BYTES_PER_G1];
-    uint8_t g2_bytes[TRUSTED_SETUP_NUM_G2_POINTS * BYTES_PER_G2];
-
-    /* Read the number of g1 points */
-    num_matches = fscanf(in, "%" SCNu64, &i);
-    CHECK(num_matches == 1);
-    CHECK(i == TRUSTED_SETUP_NUM_G1_POINTS);
-
-    /* Read the number of g2 points */
-    num_matches = fscanf(in, "%" SCNu64, &i);
-    CHECK(num_matches == 1);
-    CHECK(i == TRUSTED_SETUP_NUM_G2_POINTS);
-
-    /* Read all of the g1 points, byte by byte */
-    for (i = 0; i < TRUSTED_SETUP_NUM_G1_POINTS * BYTES_PER_G1; i++) {
-        num_matches = fscanf(in, "%2hhx", &g1_bytes[i]);
-        CHECK(num_matches == 1);
-    }
-
-    /* Read all of the g2 points, byte by byte */
-    for (i = 0; i < TRUSTED_SETUP_NUM_G2_POINTS * BYTES_PER_G2; i++) {
-        num_matches = fscanf(in, "%2hhx", &g2_bytes[i]);
-        CHECK(num_matches == 1);
-    }
-
-    return load_trusted_setup(
-        out,
-        g1_bytes,
-        TRUSTED_SETUP_NUM_G1_POINTS,
-        g2_bytes,
-        TRUSTED_SETUP_NUM_G2_POINTS
-    );
-}
+//C_KZG_RET load_trusted_setup_file(KZGSettings *out, FILE *in) {
+//    int num_matches;
+//    uint64_t i;
+//    uint8_t g1_bytes[TRUSTED_SETUP_NUM_G1_POINTS * BYTES_PER_G1];
+//    uint8_t g2_bytes[TRUSTED_SETUP_NUM_G2_POINTS * BYTES_PER_G2];
+//
+//    /* Read the number of g1 points */
+//    num_matches = fscanf(in, "%" SCNu64, &i);
+//    CHECK(num_matches == 1);
+//    CHECK(i == TRUSTED_SETUP_NUM_G1_POINTS);
+//
+//    /* Read the number of g2 points */
+//    num_matches = fscanf(in, "%" SCNu64, &i);
+//    CHECK(num_matches == 1);
+//    CHECK(i == TRUSTED_SETUP_NUM_G2_POINTS);
+//
+//    /* Read all of the g1 points, byte by byte */
+//    for (i = 0; i < TRUSTED_SETUP_NUM_G1_POINTS * BYTES_PER_G1; i++) {
+//        num_matches = fscanf(in, "%2hhx", &g1_bytes[i]);
+//        CHECK(num_matches == 1);
+//    }
+//
+//    /* Read all of the g2 points, byte by byte */
+//    for (i = 0; i < TRUSTED_SETUP_NUM_G2_POINTS * BYTES_PER_G2; i++) {
+//        num_matches = fscanf(in, "%2hhx", &g2_bytes[i]);
+//        CHECK(num_matches == 1);
+//    }
+//
+//    return load_trusted_setup(
+//        out,
+//        g1_bytes,
+//        TRUSTED_SETUP_NUM_G1_POINTS,
+//        g2_bytes,
+//        TRUSTED_SETUP_NUM_G2_POINTS
+//    );
+//}
