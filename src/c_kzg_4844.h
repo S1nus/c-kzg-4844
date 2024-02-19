@@ -122,13 +122,14 @@ typedef struct {
 ///////////////////////////////////////////////////////////////////////////////
 // Interface functions
 ///////////////////////////////////////////////////////////////////////////////
-
 C_KZG_RET load_trusted_setup(
     KZGSettings *out,
-    const uint8_t *g1_bytes, /* n1 * 48 bytes */
+    const uint8_t *g1_bytes,
     size_t n1,
-    const uint8_t *g2_bytes, /* n2 * 96 bytes */
-    size_t n2
+    const uint8_t *g2_bytes,
+    size_t n2,
+    void **tmp1,
+    void **tmp2
 );
 
 // ain't no file system where we're going
@@ -137,7 +138,10 @@ C_KZG_RET load_trusted_setup(
 void free_trusted_setup(KZGSettings *s);
 
 C_KZG_RET blob_to_kzg_commitment(
-    KZGCommitment *out, const Blob *blob, const KZGSettings *s
+    KZGCommitment *out, const Blob *blob, const KZGSettings *s,
+    void *scratch,
+    blst_p1_affine *p_affine,
+    blst_scalar *scalars
 );
 
 C_KZG_RET compute_kzg_proof(
@@ -145,14 +149,20 @@ C_KZG_RET compute_kzg_proof(
     Bytes32 *y_out,
     const Blob *blob,
     const Bytes32 *z_bytes,
-    const KZGSettings *s
+    const KZGSettings *s,
+    void *lincomb_scratch,
+    blst_p1_affine *lincomb_p1s,
+    blst_scalar *lincomb_scalars
 );
 
 C_KZG_RET compute_blob_kzg_proof(
     KZGProof *out,
     const Blob *blob,
     const Bytes48 *commitment_bytes,
-    const KZGSettings *s
+    const KZGSettings *s,
+    void *lincomb_scratch,
+    blst_p1_affine *lincomb_p1s,
+    blst_scalar *limbcom_scalars
 );
 
 C_KZG_RET verify_kzg_proof(

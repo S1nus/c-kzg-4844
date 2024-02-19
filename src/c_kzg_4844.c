@@ -686,11 +686,11 @@ static C_KZG_RET g1_lincomb_fast_no_malloc(
     g1_t *out, const g1_t *p, const fr_t *coeffs,
     // pre-allocated buffers:
     // size = blst_p1s_mult_pippenger_scratch_sizeof(FIELD_ELEMENTS_PER_BLOB);
-    const void *scratch, 
+    void *scratch, 
     // size = FIELD_ELEMENTS_PER_BLOB * sizeof(blst_p1_affine);
-    const blst_p1_affine *p_affine,
+    blst_p1_affine *p_affine,
     // size = FIELD_ELEMENTS_PER_BLOB * sizeof(blst_scalar)
-    const blst_scalar *scalars
+    blst_scalar *scalars
 ) {
     C_KZG_RET ret;
     // made this an argument, we're preallocating it in the host machine
@@ -817,9 +817,9 @@ out:
  */
 static C_KZG_RET poly_to_kzg_commitment(
     g1_t *out, const Polynomial *p, const KZGSettings *s,
-    const void *scratch,
-    const blst_p1_affine *p_affine,
-    const blst_scalar *scalars
+    void *scratch,
+    blst_p1_affine *p_affine,
+    blst_scalar *scalars
 ) {
     return g1_lincomb_fast_no_malloc(
         out, s->g1_values, (const fr_t *)(&p->evals),
@@ -838,9 +838,9 @@ static C_KZG_RET poly_to_kzg_commitment(
  */
 C_KZG_RET blob_to_kzg_commitment(
     KZGCommitment *out, const Blob *blob, const KZGSettings *s,
-    const void *scratch,
-    const blst_p1_affine *p_affine,
-    const blst_scalar *scalars
+    void *scratch,
+    blst_p1_affine *p_affine,
+    blst_scalar *scalars
 ) {
     C_KZG_RET ret;
     Polynomial p;
@@ -950,7 +950,10 @@ static C_KZG_RET compute_kzg_proof_impl(
     fr_t *y_out,
     const Polynomial *polynomial,
     const fr_t *z,
-    const KZGSettings *s
+    const KZGSettings *s,
+    void *lincomb_scratch,
+    blst_p1_affine *lincomb_p1s,
+    blst_scalar *lincomb_scalars
 );
 
 /**
@@ -968,7 +971,10 @@ C_KZG_RET compute_kzg_proof(
     Bytes32 *y_out,
     const Blob *blob,
     const Bytes32 *z_bytes,
-    const KZGSettings *s
+    const KZGSettings *s,
+    void *lincomb_scratch,
+    blst_p1_affine *lincomb_p1s,
+    blst_scalar *lincomb_scalars
 ) {
     C_KZG_RET ret;
     Polynomial polynomial;
@@ -978,7 +984,8 @@ C_KZG_RET compute_kzg_proof(
     if (ret != C_KZG_OK) goto out;
     ret = bytes_to_bls_field(&frz, z_bytes);
     if (ret != C_KZG_OK) goto out;
-    ret = compute_kzg_proof_impl(proof_out, &fry, &polynomial, &frz, s);
+    ret = compute_kzg_proof_impl(proof_out, &fry, &polynomial, &frz, s,
+        lincomb_scratch, lincomb_p1s, lincomb_scalars);
     if (ret != C_KZG_OK) goto out;
     bytes_from_bls_field(y_out, &fry);
 
@@ -1002,7 +1009,10 @@ static C_KZG_RET compute_kzg_proof_impl(
     fr_t *y_out,
     const Polynomial *polynomial,
     const fr_t *z,
-    const KZGSettings *s
+    const KZGSettings *s,
+    void *lincomb_scratch,
+    blst_p1_affine *lincomb_p1s,
+    blst_scalar *lincomb_scalars
 ) {
     C_KZG_RET ret;
     fr_t *inverses_in = NULL;
@@ -1066,8 +1076,9 @@ static C_KZG_RET compute_kzg_proof_impl(
     }
 
     g1_t out_g1;
-    ret = g1_lincomb_fast(
-        &out_g1, s->g1_values, (const fr_t *)(&q.evals), FIELD_ELEMENTS_PER_BLOB
+    ret = g1_lincomb_fast_no_malloc(
+        &out_g1, s->g1_values, (const fr_t *)(&q.evals),
+        lincomb_scratch, lincomb_p1s, lincomb_scalars
     );
     if (ret != C_KZG_OK) goto out;
 
@@ -1093,7 +1104,10 @@ C_KZG_RET compute_blob_kzg_proof(
     KZGProof *out,
     const Blob *blob,
     const Bytes48 *commitment_bytes,
-    const KZGSettings *s
+    const KZGSettings *s,
+    void *lincomb_scratch,
+    blst_p1_affine *lincomb_p1s,
+    blst_scalar *limbcom_scalars
 ) {
     C_KZG_RET ret;
     Polynomial polynomial;
@@ -1112,7 +1126,8 @@ C_KZG_RET compute_blob_kzg_proof(
 
     /* Call helper function to compute proof and y */
     ret = compute_kzg_proof_impl(
-        out, &y, &polynomial, &evaluation_challenge_fr, s
+        out, &y, &polynomial, &evaluation_challenge_fr, s,
+        lincomb_scratch, lincomb_p1s, limbcom_scalars
     );
     if (ret != C_KZG_OK) goto out;
 
