@@ -1237,7 +1237,8 @@ static int log2_pow2(uint32_t n) {
  *                       strictly greater than 1 and less than 2^32.
  */
 static C_KZG_RET bit_reversal_permutation(
-    void *values, size_t size, uint64_t n
+    void *values, size_t size, uint64_t n,
+    void **tmp
 ) {
     CHECK(n != 0);
     CHECK(n >> 32 == 0);
@@ -1246,13 +1247,6 @@ static C_KZG_RET bit_reversal_permutation(
 
     /* copy pointer and convert from void* to byte* */
     byte *v = values;
-
-    /* allocate scratch space for swapping an entry of the values array */
-    byte *tmp = NULL;
-    C_KZG_RET ret = c_kzg_malloc((void **)&tmp, size);
-    if (ret != C_KZG_OK) {
-        return ret;
-    }
 
     int unused_bit_len = 32 - log2_pow2(n);
     for (uint32_t i = 0; i < n; i++) {
@@ -1308,7 +1302,8 @@ static C_KZG_RET expand_root_of_unity(
  *                                be initialized
  */
 static C_KZG_RET compute_roots_of_unity(
-    fr_t *roots_of_unity_out, uint32_t max_scale
+    fr_t *roots_of_unity_out, uint32_t max_scale,
+    void **tmp
 ) {
     C_KZG_RET ret;
     uint64_t max_width;
@@ -1338,7 +1333,7 @@ static C_KZG_RET compute_roots_of_unity(
     memcpy(roots_of_unity_out, expanded_roots, sizeof(fr_t) * max_width);
 
     /* Permute the roots of unity */
-    ret = bit_reversal_permutation(roots_of_unity_out, sizeof(fr_t), max_width);
+    ret = bit_reversal_permutation(roots_of_unity_out, sizeof(fr_t), max_width, tmp);
     if (ret != C_KZG_OK) goto out;
 
 out:
@@ -1404,7 +1399,9 @@ C_KZG_RET load_trusted_setup(
     const uint8_t *g1_bytes,
     size_t n1,
     const uint8_t *g2_bytes,
-    size_t n2
+    size_t n2,
+    void **tmp1,
+    void **tmp2
 ) {
     C_KZG_RET ret;
 
@@ -1424,14 +1421,6 @@ C_KZG_RET load_trusted_setup(
 
     /* Set the max_width */
     out->max_width = 1ULL << max_scale;
-
-    /* Allocate all of our arrays */
-    ret = new_fr_array(&out->roots_of_unity, out->max_width);
-    if (ret != C_KZG_OK) goto out_error;
-    ret = new_g1_array(&out->g1_values, n1);
-    if (ret != C_KZG_OK) goto out_error;
-    ret = new_g2_array(&out->g2_values, n2);
-    if (ret != C_KZG_OK) goto out_error;
 
     /* Convert all g1 bytes to g1 points */
     for (uint64_t i = 0; i < n1; i++) {
@@ -1464,9 +1453,9 @@ C_KZG_RET load_trusted_setup(
     if (ret != C_KZG_OK) goto out_error;
 
     /* Compute roots of unity and permute the G1 trusted setup */
-    ret = compute_roots_of_unity(out->roots_of_unity, max_scale);
+    ret = compute_roots_of_unity(out->roots_of_unity, max_scale, tmp1);
     if (ret != C_KZG_OK) goto out_error;
-    ret = bit_reversal_permutation(out->g1_values, sizeof(g1_t), n1);
+    ret = bit_reversal_permutation(out->g1_values, sizeof(g1_t), n1, tmp2);
     if (ret != C_KZG_OK) goto out_error;
 
     goto out_success;
