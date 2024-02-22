@@ -9,10 +9,11 @@ include!("./generated.rs");
 
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::ffi::CStr;
+use core::ffi::{c_void};
 use core::fmt;
 use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
+use core::mem;
 
 #[cfg(feature = "std")]
 use alloc::ffi::CString;
@@ -93,6 +94,9 @@ impl KZGSettings {
     pub fn load_trusted_setup(
         g1_bytes: &[[u8; BYTES_PER_G1_POINT]],
         g2_bytes: &[[u8; BYTES_PER_G2_POINT]],
+        tmp1: &mut [[u8; mem::size_of::<blst_fr>()]],
+        tmp2: &mut [[u8; mem::size_of::<g1_t>()]],
+        expanded_roots: &mut [fr_t; 4097],
     ) -> Result<Self, Error> {
         if g1_bytes.len() != FIELD_ELEMENTS_PER_BLOB {
             return Err(Error::InvalidTrustedSetup(format!(
@@ -116,6 +120,9 @@ impl KZGSettings {
                 g1_bytes.len(),
                 g2_bytes.as_ptr().cast(),
                 g2_bytes.len(),
+                tmp1.as_mut_ptr().cast(),
+                tmp2.as_mut_ptr().cast(),
+                expanded_roots.as_mut_ptr().cast(),
             );
             if let C_KZG_RET::C_KZG_OK = res {
                 Ok(kzg_settings.assume_init())
@@ -308,9 +315,19 @@ impl KZGProof {
         blob: &Blob,
         z_bytes: &Bytes32,
         kzg_settings: &KZGSettings,
+        // i actually don't know the correct size for this so I made an educated guess
+        lincomb_scratch: &mut [u8; mem::size_of::<blst_fr>()*4096*2],
+        lincomb_p1s: &mut [blst_p1_affine; 4096],
+        lincomb_scalars: &mut [blst_scalar; 4096],
+        inverses: &mut [fr_t; 4097],
+        inverses_in: &mut [fr_t; 4097],
     ) -> Result<(Self, Bytes32), Error> {
         let mut kzg_proof = MaybeUninit::<KZGProof>::uninit();
         let mut y_out = MaybeUninit::<Bytes32>::uninit();
+        let lincomb_scratch_pointer: *mut [u8; mem::size_of::<blst_fr>()*4096*2] = lincomb_scratch;
+        let lincomb_scratch_pointer_bytes: *mut c_void = lincomb_scratch_pointer as *mut c_void;
+        let lincomb_p1s_pointer: *mut [blst_p1_affine; 4096] = lincomb_p1s;
+        let lincomb_scalars_pointer: *mut [blst_scalar; 4096] = lincomb_scalars;
         unsafe {
             let res = compute_kzg_proof(
                 kzg_proof.as_mut_ptr(),
@@ -318,6 +335,11 @@ impl KZGProof {
                 blob,
                 z_bytes,
                 kzg_settings,
+                lincomb_scratch_pointer_bytes,
+                (*lincomb_p1s_pointer).as_mut_ptr(),
+                (*lincomb_scalars_pointer).as_mut_ptr(),
+                (*inverses).as_mut_ptr(),
+                (*inverses_in).as_mut_ptr(),
             );
             if let C_KZG_RET::C_KZG_OK = res {
                 Ok((kzg_proof.assume_init(), y_out.assume_init()))
@@ -331,14 +353,26 @@ impl KZGProof {
         blob: &Blob,
         commitment_bytes: &Bytes48,
         kzg_settings: &KZGSettings,
+        lincomb_scratch: &mut [u8; mem::size_of::<blst_fr>()*4096*2],
+        lincomb_p1s: &mut [blst_p1_affine; 4096],
+        lincomb_scalars: &mut [blst_scalar; 4096],
+        inverses_in: &mut [fr_t; 4097],
+        inverses: &mut [fr_t; 4097]
     ) -> Result<Self, Error> {
         let mut kzg_proof = MaybeUninit::<KZGProof>::uninit();
+        let lincomb_scratch_pointer: *mut [u8; mem::size_of::<blst_fr>()*4096*2] = lincomb_scratch;
+        let lincomb_scratch_pointer_bytes: *mut c_void = lincomb_scratch_pointer as *mut c_void;
         unsafe {
             let res = compute_blob_kzg_proof(
                 kzg_proof.as_mut_ptr(),
                 blob,
                 commitment_bytes,
                 kzg_settings,
+                lincomb_scratch_pointer_bytes,
+                (*lincomb_p1s).as_mut_ptr(),
+                (*lincomb_scalars).as_mut_ptr(),
+                (*inverses).as_mut_ptr(),
+                (*inverses_in).as_mut_ptr(),
             );
             if let C_KZG_RET::C_KZG_OK = res {
                 Ok(kzg_proof.assume_init())
@@ -378,6 +412,8 @@ impl KZGProof {
         commitment_bytes: &Bytes48,
         proof_bytes: &Bytes48,
         kzg_settings: &KZGSettings,
+        inverses: &mut [fr_t; 4097],
+        inverses_in: &mut [fr_t; 4097],
     ) -> Result<bool, Error> {
         let mut verified: MaybeUninit<bool> = MaybeUninit::uninit();
         unsafe {
@@ -387,6 +423,8 @@ impl KZGProof {
                 commitment_bytes,
                 proof_bytes,
                 kzg_settings,
+                (*inverses).as_mut_ptr(),
+                (*inverses_in).as_mut_ptr(),
             );
             if let C_KZG_RET::C_KZG_OK = res {
                 Ok(verified.assume_init())
@@ -457,10 +495,23 @@ impl KZGCommitment {
         hex::encode(self.bytes)
     }
 
-    pub fn blob_to_kzg_commitment(blob: &Blob, kzg_settings: &KZGSettings) -> Result<Self, Error> {
+    pub fn blob_to_kzg_commitment(blob: &Blob, kzg_settings: &KZGSettings,
+        lincomb_scratch: &mut [u8; mem::size_of::<blst_fr>()*4096*2],
+        lincomb_p1s: &mut [blst_p1_affine; 4096],
+        lincomb_scalars: &mut [blst_scalar; 4096],
+    ) -> Result<Self, Error> {
         let mut kzg_commitment: MaybeUninit<KZGCommitment> = MaybeUninit::uninit();
+        let lincomb_scratch_pointer: *mut [u8; mem::size_of::<blst_fr>()*4096*2] = lincomb_scratch;
+        let lincomb_scratch_pointer_bytes: *mut c_void = lincomb_scratch_pointer as *mut c_void;
         unsafe {
-            let res = blob_to_kzg_commitment(kzg_commitment.as_mut_ptr(), blob, kzg_settings);
+            let res = blob_to_kzg_commitment(
+                kzg_commitment.as_mut_ptr(), 
+                blob, 
+                kzg_settings,
+                lincomb_scratch_pointer_bytes,
+                (*lincomb_p1s).as_mut_ptr(),
+                (*lincomb_scalars).as_mut_ptr()
+            );
             if let C_KZG_RET::C_KZG_OK = res {
                 Ok(kzg_commitment.assume_init())
             } else {

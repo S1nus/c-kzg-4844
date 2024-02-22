@@ -129,7 +129,8 @@ C_KZG_RET load_trusted_setup(
     const uint8_t *g2_bytes,
     size_t n2,
     void **tmp1,
-    void **tmp2
+    void **tmp2,
+    fr_t *expanded_roots
 );
 
 // ain't no file system where we're going
@@ -152,7 +153,9 @@ C_KZG_RET compute_kzg_proof(
     const KZGSettings *s,
     void *lincomb_scratch,
     blst_p1_affine *lincomb_p1s,
-    blst_scalar *lincomb_scalars
+    blst_scalar *lincomb_scalars,
+    fr_t *inverses_in,
+    fr_t *inverses
 );
 
 C_KZG_RET compute_blob_kzg_proof(
@@ -162,7 +165,9 @@ C_KZG_RET compute_blob_kzg_proof(
     const KZGSettings *s,
     void *lincomb_scratch,
     blst_p1_affine *lincomb_p1s,
-    blst_scalar *limbcom_scalars
+    blst_scalar *limbcom_scalars,
+    fr_t *inverses_in,
+    fr_t *inverses
 );
 
 C_KZG_RET verify_kzg_proof(
@@ -179,7 +184,9 @@ C_KZG_RET verify_blob_kzg_proof(
     const Blob *blob,
     const Bytes48 *commitment_bytes,
     const Bytes48 *proof_bytes,
-    const KZGSettings *s
+    const KZGSettings *s,
+    fr_t *inverses_in,
+    fr_t *inverses
 );
 
 C_KZG_RET verify_blob_kzg_proof_batch(

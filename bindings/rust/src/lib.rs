@@ -8,7 +8,7 @@ extern crate alloc;
 // See: https://kornel.ski/rust-sys-crate#linking
 extern crate blst;
 
-mod bindings;
+pub mod bindings;
 
 // Expose relevant types with idiomatic names.
 pub use bindings::{

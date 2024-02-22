@@ -754,19 +754,14 @@ static void compute_powers(fr_t *out, const fr_t *x, uint64_t n) {
  * @param[in]  s   The trusted setup
  */
 static C_KZG_RET evaluate_polynomial_in_evaluation_form(
-    fr_t *out, const Polynomial *p, const fr_t *x, const KZGSettings *s
+    fr_t *out, const Polynomial *p, const fr_t *x, const KZGSettings *s,
+    // sizeof(fr_t)*FIELD_ELEMENTS_PER_BLOB
+    fr_t *inverses_in, fr_t *inverses
 ) {
     C_KZG_RET ret;
     fr_t tmp;
-    fr_t *inverses_in = NULL;
-    fr_t *inverses = NULL;
     uint64_t i;
     const fr_t *roots_of_unity = s->roots_of_unity;
-
-    ret = new_fr_array(&inverses_in, FIELD_ELEMENTS_PER_BLOB);
-    if (ret != C_KZG_OK) goto out;
-    ret = new_fr_array(&inverses, FIELD_ELEMENTS_PER_BLOB);
-    if (ret != C_KZG_OK) goto out;
 
     for (i = 0; i < FIELD_ELEMENTS_PER_BLOB; i++) {
         /*
@@ -799,8 +794,9 @@ static C_KZG_RET evaluate_polynomial_in_evaluation_form(
     blst_fr_mul(out, out, &tmp);
 
 out:
-    c_kzg_free(inverses_in);
-    c_kzg_free(inverses);
+    // Don't free, managed by the host
+    /*c_kzg_free(inverses_in);
+    c_kzg_free(inverses);*/
     return ret;
 }
 
@@ -953,7 +949,9 @@ static C_KZG_RET compute_kzg_proof_impl(
     const KZGSettings *s,
     void *lincomb_scratch,
     blst_p1_affine *lincomb_p1s,
-    blst_scalar *lincomb_scalars
+    blst_scalar *lincomb_scalars,
+    fr_t *inverses_in,
+    fr_t *inverses
 );
 
 /**
@@ -974,7 +972,9 @@ C_KZG_RET compute_kzg_proof(
     const KZGSettings *s,
     void *lincomb_scratch,
     blst_p1_affine *lincomb_p1s,
-    blst_scalar *lincomb_scalars
+    blst_scalar *lincomb_scalars,
+    fr_t *inverses_in,
+    fr_t *inverses
 ) {
     C_KZG_RET ret;
     Polynomial polynomial;
@@ -985,7 +985,7 @@ C_KZG_RET compute_kzg_proof(
     ret = bytes_to_bls_field(&frz, z_bytes);
     if (ret != C_KZG_OK) goto out;
     ret = compute_kzg_proof_impl(proof_out, &fry, &polynomial, &frz, s,
-        lincomb_scratch, lincomb_p1s, lincomb_scalars);
+        lincomb_scratch, lincomb_p1s, lincomb_scalars, inverses_in, inverses);
     if (ret != C_KZG_OK) goto out;
     bytes_from_bls_field(y_out, &fry);
 
@@ -1012,13 +1012,13 @@ static C_KZG_RET compute_kzg_proof_impl(
     const KZGSettings *s,
     void *lincomb_scratch,
     blst_p1_affine *lincomb_p1s,
-    blst_scalar *lincomb_scalars
+    blst_scalar *lincomb_scalars,
+    fr_t *inverses_in,
+    fr_t *inverses
 ) {
     C_KZG_RET ret;
-    fr_t *inverses_in = NULL;
-    fr_t *inverses = NULL;
 
-    ret = evaluate_polynomial_in_evaluation_form(y_out, polynomial, z, s);
+    ret = evaluate_polynomial_in_evaluation_form(y_out, polynomial, z, s, inverses_in, inverses);
     if (ret != C_KZG_OK) goto out;
 
     fr_t tmp;
@@ -1027,11 +1027,6 @@ static C_KZG_RET compute_kzg_proof_impl(
     uint64_t i;
     /* m != 0 indicates that the evaluation point z equals root_of_unity[m-1] */
     uint64_t m = 0;
-
-    ret = new_fr_array(&inverses_in, FIELD_ELEMENTS_PER_BLOB);
-    if (ret != C_KZG_OK) goto out;
-    ret = new_fr_array(&inverses, FIELD_ELEMENTS_PER_BLOB);
-    if (ret != C_KZG_OK) goto out;
 
     for (i = 0; i < FIELD_ELEMENTS_PER_BLOB; i++) {
         if (fr_equal(z, &roots_of_unity[i])) {
@@ -1085,8 +1080,9 @@ static C_KZG_RET compute_kzg_proof_impl(
     bytes_from_g1(proof_out, &out_g1);
 
 out:
+    /* Don't free, managed by the host
     c_kzg_free(inverses_in);
-    c_kzg_free(inverses);
+    c_kzg_free(inverses);*/
     return ret;
 }
 
@@ -1107,7 +1103,9 @@ C_KZG_RET compute_blob_kzg_proof(
     const KZGSettings *s,
     void *lincomb_scratch,
     blst_p1_affine *lincomb_p1s,
-    blst_scalar *limbcom_scalars
+    blst_scalar *limbcom_scalars,
+    fr_t *inverses_in,
+    fr_t *inverses
 ) {
     C_KZG_RET ret;
     Polynomial polynomial;
@@ -1127,7 +1125,8 @@ C_KZG_RET compute_blob_kzg_proof(
     /* Call helper function to compute proof and y */
     ret = compute_kzg_proof_impl(
         out, &y, &polynomial, &evaluation_challenge_fr, s,
-        lincomb_scratch, lincomb_p1s, limbcom_scalars
+        lincomb_scratch, lincomb_p1s, limbcom_scalars,
+        inverses_in, inverses
     );
     if (ret != C_KZG_OK) goto out;
 
@@ -1150,7 +1149,9 @@ C_KZG_RET verify_blob_kzg_proof(
     const Blob *blob,
     const Bytes48 *commitment_bytes,
     const Bytes48 *proof_bytes,
-    const KZGSettings *s
+    const KZGSettings *s,
+    fr_t *inverses_in,
+    fr_t *inverses
 ) {
     C_KZG_RET ret;
     Polynomial polynomial;
@@ -1172,7 +1173,8 @@ C_KZG_RET verify_blob_kzg_proof(
 
     /* Evaluate challenge to get y */
     ret = evaluate_polynomial_in_evaluation_form(
-        &y_fr, &polynomial, &evaluation_challenge_fr, s
+        &y_fr, &polynomial, &evaluation_challenge_fr, s,
+        inverses_in, inverses
     );
     if (ret != C_KZG_OK) return ret;
 
@@ -1273,7 +1275,8 @@ static C_KZG_RET bit_reversal_permutation(
             memcpy(v + (r * size), tmp, size);
         }
     }
-    c_kzg_free(tmp);
+    // don't free
+    //c_kzg_free(tmp);
 
     return C_KZG_OK;
 }
@@ -1318,12 +1321,13 @@ static C_KZG_RET expand_root_of_unity(
  */
 static C_KZG_RET compute_roots_of_unity(
     fr_t *roots_of_unity_out, uint32_t max_scale,
-    void **tmp
+    void **tmp,
+    // 4097 * sizeof(fr_t)
+    fr_t *expanded_roots
 ) {
     C_KZG_RET ret;
     uint64_t max_width;
     fr_t root_of_unity;
-    fr_t *expanded_roots = NULL;
 
     /* Calculate the max width */
     max_width = 1ULL << max_scale;
@@ -1337,8 +1341,7 @@ static C_KZG_RET compute_roots_of_unity(
      * instead of re-using roots_of_unity_out because the expansion requires
      * max_width+1 elements.
      */
-    ret = new_fr_array(&expanded_roots, max_width + 1);
-    if (ret != C_KZG_OK) goto out;
+    // ( removed for risc 0 )
 
     /* Populate the roots of unity */
     ret = expand_root_of_unity(expanded_roots, &root_of_unity, max_width);
@@ -1352,7 +1355,8 @@ static C_KZG_RET compute_roots_of_unity(
     if (ret != C_KZG_OK) goto out;
 
 out:
-    c_kzg_free(expanded_roots);
+    // don't free
+    //c_kzg_free(expanded_roots);
     return ret;
 }
 
@@ -1366,9 +1370,10 @@ out:
 void free_trusted_setup(KZGSettings *s) {
     if (s == NULL) return;
     s->max_width = 0;
-    c_kzg_free(s->roots_of_unity);
+    // remove free, these will be managed by the host
+    /*c_kzg_free(s->roots_of_unity);
     c_kzg_free(s->g1_values);
-    c_kzg_free(s->g2_values);
+    c_kzg_free(s->g2_values);*/
 }
 
 /**
@@ -1416,7 +1421,8 @@ C_KZG_RET load_trusted_setup(
     const uint8_t *g2_bytes,
     size_t n2,
     void **tmp1,
-    void **tmp2
+    void **tmp2,
+    fr_t *expanded_roots
 ) {
     C_KZG_RET ret;
 
@@ -1468,7 +1474,7 @@ C_KZG_RET load_trusted_setup(
     if (ret != C_KZG_OK) goto out_error;
 
     /* Compute roots of unity and permute the G1 trusted setup */
-    ret = compute_roots_of_unity(out->roots_of_unity, max_scale, tmp1);
+    ret = compute_roots_of_unity(out->roots_of_unity, max_scale, tmp1, expanded_roots);
     if (ret != C_KZG_OK) goto out_error;
     ret = bit_reversal_permutation(out->g1_values, sizeof(g1_t), n1, tmp2);
     if (ret != C_KZG_OK) goto out_error;
@@ -1481,7 +1487,8 @@ out_error:
      * (roots_of_unity, g1_values, g2_values). It does not free the KZGSettings
      * structure memory. If necessary, that must be done by the caller.
      */
-    free_trusted_setup(out);
+    // we don't free
+    //free_trusted_setup(out);
 out_success:
     return ret;
 }
