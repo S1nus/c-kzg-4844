@@ -83,11 +83,13 @@ fn make_bindings(header_path: &str, blst_headers_dir: &str, bindings_out_path: &
          * Cleanup instructions.
          */
         // Remove stdio definitions related to FILE.
-        .opaque_type("FILE")
+        // @c-node: commenting out for nostd
+        //.opaque_type("FILE")
         // Remove the definition of FILE to use the libc one, which is more convenient.
-        .blocklist_type("FILE")
+        // @c-node removed for nostd
+        //.blocklist_type("FILE")
         // Inject rust code using libc's FILE
-        .raw_line("use libc::FILE;")
+        //.raw_line("use libc::FILE;")
         // Do no generate layout tests.
         .layout_tests(false)
         // Extern functions do not need individual extern blocks.
